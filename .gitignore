@@ -1,0 +1,52 @@
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcshareddata/
+*.xcworkspace/xcshareddata/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Generated files
+*.generated.swift
+*.generated.swift
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+*.app
+*.dmg
+*.pkg
+*.zip
+
+# Secrets (never commit)
+*.xcconfig
+Secrets.swift
+
+# Models (downloaded at runtime)
+Models/*.mlmodelc
+Models/*.bin
