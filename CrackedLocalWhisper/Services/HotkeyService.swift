@@ -8,7 +8,7 @@ extension KeyboardShortcuts.Name {
     static let pushToTalk = Self("pushToTalk")
 }
 
-/// Service for managing global hotkeys (Cmd+` default)
+/// Service for managing global hotkeys with custom binding support
 @MainActor
 class HotkeyService: ObservableObject {
     static let shared = HotkeyService()
@@ -19,11 +19,12 @@ class HotkeyService: ObservableObject {
 
     // MARK: - Private Properties
     private var eventMonitor: Any?
+    private var localEventMonitor: Any?
     private var flagsMonitor: Any?
 
-    // Default hotkey: Cmd + Backtick (`)
-    private let defaultKeyCode: UInt16 = 50 // Backtick key
-    private let defaultModifiers: NSEvent.ModifierFlags = .command
+    // Current configured shortcut (read from KeyboardShortcuts)
+    private var configuredKeyCode: UInt16 = 50 // Default: Backtick
+    private var configuredModifiers: NSEvent.ModifierFlags = .command
 
     // MARK: - Initialization
     private init() {
@@ -31,14 +32,36 @@ class HotkeyService: ObservableObject {
         if KeyboardShortcuts.getShortcut(for: .pushToTalk) == nil {
             KeyboardShortcuts.setShortcut(.init(.backtick, modifiers: .command), for: .pushToTalk)
         }
-        updateCurrentShortcutDisplay()
+        loadConfiguredShortcut()
+
+        // Listen for shortcut changes
+        KeyboardShortcuts.onKeyDown(for: .pushToTalk) { [weak self] in
+            // This won't work for hold-to-record, but we use it to detect changes
+        }
+    }
+
+    // MARK: - Load Configured Shortcut
+
+    /// Load the user's configured shortcut
+    func loadConfiguredShortcut() {
+        if let shortcut = KeyboardShortcuts.getShortcut(for: .pushToTalk) {
+            configuredKeyCode = UInt16(shortcut.key?.rawValue ?? 50)
+            // KeyboardShortcuts.Shortcut.modifiers is already NSEvent.ModifierFlags
+            configuredModifiers = shortcut.modifiers
+            currentShortcut = shortcut.description
+        } else {
+            configuredKeyCode = 50
+            configuredModifiers = .command
+            currentShortcut = "⌘`"
+        }
     }
 
     // MARK: - Hotkey Registration
 
     /// Register global hotkey listener
     func registerHotkey() {
-        // Use low-level event monitoring for push-to-talk (hold to record)
+        // Reload in case user changed it
+        loadConfiguredShortcut()
         setupEventMonitors()
     }
 
@@ -48,10 +71,20 @@ class HotkeyService: ObservableObject {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
         }
+        if let monitor = localEventMonitor {
+            NSEvent.removeMonitor(monitor)
+            localEventMonitor = nil
+        }
         if let monitor = flagsMonitor {
             NSEvent.removeMonitor(monitor)
             flagsMonitor = nil
         }
+    }
+
+    /// Re-register with new shortcut (call after user changes binding)
+    func updateHotkey() {
+        unregisterHotkey()
+        registerHotkey()
     }
 
     // MARK: - Event Monitoring
@@ -67,7 +100,7 @@ class HotkeyService: ObservableObject {
         }
 
         // Also monitor local events (when app is focused)
-        NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
+        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
             Task { @MainActor in
                 self?.handleKeyEvent(event)
             }
@@ -85,9 +118,9 @@ class HotkeyService: ObservableObject {
     }
 
     private func handleKeyEvent(_ event: NSEvent) {
-        // Check for our hotkey (Cmd + `)
-        guard event.keyCode == defaultKeyCode,
-              event.modifierFlags.contains(defaultModifiers) else {
+        // Check if this matches our configured hotkey
+        guard event.keyCode == configuredKeyCode,
+              matchesModifiers(event.modifierFlags) else {
             return
         }
 
@@ -102,21 +135,25 @@ class HotkeyService: ObservableObject {
 
     private func handleFlagsChanged(_ event: NSEvent) {
         // Release hotkey if modifier is released while key is held
-        if isHotkeyPressed && !event.modifierFlags.contains(defaultModifiers) {
+        if isHotkeyPressed && !matchesModifiers(event.modifierFlags) {
             isHotkeyPressed = false
             NotificationCenter.default.post(name: .hotkeyReleased, object: nil)
         }
+    }
+
+    /// Check if event modifiers match configured modifiers
+    private func matchesModifiers(_ eventModifiers: NSEvent.ModifierFlags) -> Bool {
+        // Check required modifiers are present
+        let required = configuredModifiers.intersection([.command, .option, .control, .shift])
+        let actual = eventModifiers.intersection([.command, .option, .control, .shift])
+        return actual.contains(required)
     }
 
     // MARK: - Shortcut Configuration
 
     /// Update the displayed shortcut string
     func updateCurrentShortcutDisplay() {
-        if let shortcut = KeyboardShortcuts.getShortcut(for: .pushToTalk) {
-            currentShortcut = shortcut.description
-        } else {
-            currentShortcut = "⌘`"
-        }
+        loadConfiguredShortcut()
     }
 
     /// Check if accessibility permissions are granted
@@ -135,3 +172,4 @@ class HotkeyService: ObservableObject {
 extension KeyboardShortcuts.Key {
     static let backtick = Self(rawValue: 50) // Backtick key code
 }
+

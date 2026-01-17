@@ -142,23 +142,43 @@ struct ModelSettingsTab: View {
 
 // MARK: - Shortcuts Settings Tab
 struct ShortcutsSettingsTab: View {
+    @State private var currentShortcut: String = HotkeyService.shared.currentShortcut
+
     var body: some View {
         Form {
             Section("Push-to-Talk") {
                 KeyboardShortcuts.Recorder("Hotkey", name: .pushToTalk)
                     .padding(.vertical, 4)
+                    .onChange(of: KeyboardShortcuts.getShortcut(for: .pushToTalk)) { _, _ in
+                        // Update hotkey when user changes it
+                        Task { @MainActor in
+                            HotkeyService.shared.updateHotkey()
+                            currentShortcut = HotkeyService.shared.currentShortcut
+                        }
+                    }
 
                 Text("Hold to record, release to transcribe and paste")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Default Shortcuts") {
+            Section("Current Binding") {
                 HStack {
-                    Text("Push-to-Talk")
+                    Text("Active Shortcut")
                     Spacer()
-                    Text("⌘`")
+                    Text(currentShortcut)
                         .foregroundStyle(.secondary)
+                        .fontWeight(.medium)
+                }
+            }
+
+            Section {
+                Button("Reset to Default (⌘`)") {
+                    KeyboardShortcuts.reset(.pushToTalk)
+                    Task { @MainActor in
+                        HotkeyService.shared.updateHotkey()
+                        currentShortcut = HotkeyService.shared.currentShortcut
+                    }
                 }
             }
         }
