@@ -27,6 +27,7 @@ struct CrackedLocalWhisperApp: App {
 }
 
 // MARK: - App Delegate
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var floatingWindow: NSPanel?
 
@@ -91,7 +92,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.showFloatingWindow()
+            Task { @MainActor in
+                self?.showFloatingWindow()
+            }
         }
 
         NotificationCenter.default.addObserver(
@@ -99,7 +102,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.hideFloatingWindow()
+            Task { @MainActor in
+                self?.hideFloatingWindow()
+            }
         }
     }
 
@@ -113,7 +118,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         AudioCaptureService.shared.stopRecording()
 
         // Transcribe and paste
-        Task { @MainActor in
+        Task {
             await WhisperService.shared.transcribeRecording()
             if let text = WhisperService.shared.lastTranscription, !text.isEmpty {
                 PasteService.shared.pasteText(text)

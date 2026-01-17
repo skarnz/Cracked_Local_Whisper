@@ -45,14 +45,6 @@ class AudioCaptureService: ObservableObject {
     func startRecording() {
         guard !isRecording else { return }
 
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .measurement)
-            try session.setActive(true)
-        } catch {
-            print("Audio session error: \(error)")
-        }
-
         guard let audioEngine = audioEngine else { return }
 
         let inputNode = audioEngine.inputNode
@@ -65,12 +57,12 @@ class AudioCaptureService: ObservableObject {
         try? FileManager.default.removeItem(at: outputURL)
 
         // Setup recording format (16kHz mono for WhisperKit)
-        let recordingFormat = AVAudioFormat(
+        guard let recordingFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: sampleRate,
             channels: 1,
             interleaved: false
-        )!
+        ) else { return }
 
         // Create converter if sample rates differ
         let converter: AVAudioConverter?

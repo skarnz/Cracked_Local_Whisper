@@ -114,7 +114,7 @@ class WhisperService: ObservableObject {
         do {
             let config = WhisperKitConfig(
                 model: selectedModel.rawValue,
-                downloadBase: modelDirectory.path,
+                downloadBase: modelDirectory,
                 computeOptions: ModelComputeOptions(
                     audioEncoderCompute: .cpuAndNeuralEngine,
                     textDecoderCompute: .cpuAndNeuralEngine
@@ -123,14 +123,9 @@ class WhisperService: ObservableObject {
                 prewarm: true
             )
 
-            loadingMessage = "Downloading model (if needed)..."
+            loadingMessage = "Loading model..."
 
-            whisperKit = try await WhisperKit(config) { progress in
-                Task { @MainActor in
-                    self.loadingProgress = progress.fractionCompleted
-                    self.loadingMessage = "Downloading: \(Int(progress.fractionCompleted * 100))%"
-                }
-            }
+            whisperKit = try await WhisperKit(config)
 
             loadingMessage = "Model ready!"
             scanDownloadedModels()
@@ -145,14 +140,8 @@ class WhisperService: ObservableObject {
 
     /// Fetch available models from remote
     func fetchAvailableModels() async {
-        do {
-            if let models = try await WhisperKit.recommendedRemoteModels() {
-                let variants = models.compactMap { WhisperModelVariant(rawValue: $0) }
-                availableModels = variants.isEmpty ? WhisperModelVariant.allCases : variants
-            }
-        } catch {
-            availableModels = WhisperModelVariant.allCases
-        }
+        // Use all cases as available models since the API returns ModelSupport
+        availableModels = WhisperModelVariant.allCases
     }
 
     // MARK: - Transcription
@@ -168,8 +157,8 @@ class WhisperService: ObservableObject {
         defer { isTranscribing = false }
 
         do {
-            let result = try await whisperKit.transcribe(audioPath: audioPath.path)
-            let text = result?.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let results = try await whisperKit.transcribe(audioPath: audioPath.path)
+            let text = results.map { $0.text }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
             lastTranscription = text
             return text
         } catch {
@@ -200,8 +189,8 @@ class WhisperService: ObservableObject {
         defer { isTranscribing = false }
 
         do {
-            let result = try await whisperKit.transcribe(audioArray: samples)
-            let text = result?.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let results = try await whisperKit.transcribe(audioArray: samples)
+            let text = results.map { $0.text }.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
             lastTranscription = text
             return text
         } catch {

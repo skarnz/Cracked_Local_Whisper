@@ -1,5 +1,4 @@
 import Foundation
-import WhisperKit
 
 /// Service for checking and updating to latest SOTA WhisperKit models
 @MainActor
@@ -36,10 +35,11 @@ class ModelUpdateService: ObservableObject {
         isCheckingForUpdates = true
         updateStatus = "Checking for updates..."
 
-        do {
-            // Fetch available models from WhisperKit
-            let remoteModels = try await WhisperKit.recommendedRemoteModels()
-            latestModels = remoteModels ?? []
+        // Check HuggingFace API directly
+        let models = await checkHuggingFaceAPI()
+
+        if !models.isEmpty {
+            latestModels = models.first?.siblings?.map { $0.rfilename } ?? []
 
             // Compare with locally installed versions
             let localVersions = getInstalledModelVersions()
@@ -49,9 +49,8 @@ class ModelUpdateService: ObservableObject {
             UserDefaults.standard.set(lastCheckDate, forKey: lastCheckKey)
 
             updateStatus = updateAvailable ? "Updates available!" : "All models up to date"
-
-        } catch {
-            updateStatus = "Update check failed: \(error.localizedDescription)"
+        } else {
+            updateStatus = "Could not check for updates"
         }
 
         isCheckingForUpdates = false
@@ -251,9 +250,6 @@ class ModelUpdateService: ObservableObject {
                 localVersions["lastCheck"] = remoteDate
                 let versionData = try JSONEncoder().encode(localVersions)
                 try versionData.write(to: versionsFile)
-
-                // Notify via notification center (optional)
-                // This would require running as a proper app, not a script
 
                 log("Version file updated")
             } else {
