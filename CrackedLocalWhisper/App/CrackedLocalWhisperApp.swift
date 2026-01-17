@@ -32,6 +32,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var floatingWindow: NSPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Show first launch welcome/instructions
+        showFirstLaunchDialogIfNeeded()
+
         // Request necessary permissions
         PermissionsManager.shared.requestMicrophoneAccess()
         PermissionsManager.shared.requestAccessibilityAccess()
@@ -49,6 +52,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Hide dock icon (menu bar app)
         NSApp.setActivationPolicy(.accessory)
+    }
+
+    private func showFirstLaunchDialogIfNeeded() {
+        let hasLaunchedKey = "hasLaunchedBefore"
+        let hasLaunched = UserDefaults.standard.bool(forKey: hasLaunchedKey)
+
+        if !hasLaunched {
+            UserDefaults.standard.set(true, forKey: hasLaunchedKey)
+
+            let alert = NSAlert()
+            alert.messageText = "Welcome to Cracked Local Whisper!"
+            alert.informativeText = """
+            Quick Setup:
+
+            1. PERMISSIONS NEEDED
+               • Microphone - for voice recording
+               • Accessibility - for auto-paste feature
+
+            2. HOW TO USE
+               • Hold Cmd+` to record
+               • Release to transcribe & paste
+
+            3. FIRST MODEL DOWNLOAD
+               The "base" model (~150MB) will download automatically on first use.
+
+            If macOS blocked the app:
+            → System Settings → Privacy & Security → Click "Open Anyway"
+
+            Enjoy local, private dictation!
+            """
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "Get Started")
+            alert.runModal()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
